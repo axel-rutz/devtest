@@ -1,0 +1,4 @@
+name = Dev
+description = Allows feature updates on write-protected installs.
+package = clever-systems.net
+core = 7.x
