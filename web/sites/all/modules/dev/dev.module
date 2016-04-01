@@ -49,6 +49,7 @@ function dev_system_info_alter(&$info, &$file, $type) {
     }
   }
 
+  $old_file_uri = $file->uri;
   if ($dev_drupal_root) {
     $dev_file_uri = "$dev_drupal_root/$file->uri";
     if (file_exists($dev_file_uri)) {
@@ -56,5 +57,10 @@ function dev_system_info_alter(&$info, &$file, $type) {
       // This is weird but core wants it.
       $file->filename = $dev_file_uri;
     }
+  }
+  if (variable_get('dev_debug')) {
+    watchdog('dev-debug-sysinfo', '@name: @old, @new',
+      array('@name' => $file->name, '@old' => $old_file_uri, '@new' => $file->uri),
+      WATCHDOG_DEBUG, 'admin/config/development/dev');
   }
 }

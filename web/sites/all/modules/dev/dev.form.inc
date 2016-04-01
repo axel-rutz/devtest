@@ -1,5 +1,9 @@
 <?php
 
+if (function_exists('dev_settings_form')) {
+  return;
+}
+
 function dev_settings_form($form, &$form_state) {
   form_load_include($form_state, 'inc', 'dev', 'dev.form');
 
@@ -19,12 +23,6 @@ function dev_settings_form($form, &$form_state) {
 
   // Git settings: remote url, local path, relative drupal root path
   $form['settings']['#tree'] = TRUE;
-  $form['settings']['dev_enabled'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Enable'),
-    '#description' => t('This can be locked to off in settings.php if needed.'),
-    '#default_value' => variable_get('dev_enabled'),
-  );
   $form['settings']['dev_git_remote_url'] = array(
     '#type' => 'textfield',
     '#title' => t('Git remote URL'),
@@ -69,7 +67,21 @@ function dev_settings_form($form, &$form_state) {
     '#submit' => array('dev_settings_git_clone'),
   );
 
-  // Commit.
+  // Enable
+  $form['enable']['#tree'] = TRUE;
+  $form['enable']['dev_enabled'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable'),
+    '#description' => t('This can be locked to off in settings.php if needed.'),
+    '#default_value' => variable_get('dev_enabled'),
+  );
+  $form['enable']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save configuration'),
+    '#submit' => array('dev_settings_form_submit_enabled'),
+  );
+
+  // Commit or reset.
   $form['commit']['git_commit_message'] = array(
     '#type' => 'textfield',
     '#title' => t('Commit message'),
@@ -79,17 +91,18 @@ function dev_settings_form($form, &$form_state) {
     '#type' => 'submit',
     '#submit' => array('dev_settings_git_commit'),
   );
-  $form['commit']['diff'] = array(
-    '#title' => t('Diff'),
-    '#type' => 'item',
-    '#markup' => check_plain($git_diff),
-  );
-
-  // Reset.
-  $form['reset']['git_reset'] = array(
+  $form['commit']['git_reset'] = array(
     '#value' => t('Reset uncommitted changes'),
     '#type' => 'submit',
     '#submit' => array('dev_settings_git_reset'),
+  );
+  $form['commit']['diff'] = array(
+    '#title' => t('Diff'),
+    '#type' => 'fieldset',
+    'text' => array(
+      '#type' => 'item',
+      '#markup' => check_plain($git_diff),
+    ),
   );
 
   // Push.
@@ -109,6 +122,9 @@ function dev_settings_form($form, &$form_state) {
   elseif (!$has_git) {
     $default_tab = 'clone';
   }
+  elseif (!variable_get('dev_enabled')) {
+    $default_tab = 'enable';
+  }
   elseif ($git_diff) {
     $default_tab = 'commit';
   }
@@ -120,8 +136,8 @@ function dev_settings_form($form, &$form_state) {
              'settings' => t('Settings'),
              'ssh' => t('SSH'),
              'clone' => t('Clone'),
+             'enable' => t('Enable'),
              'commit' => t('Commit'),
-             'reset' => t('Reset'),
              'push' => t('Push'),
              ) as $key => $title) {
     $form[$key]['#type'] = 'fieldset';
@@ -141,14 +157,27 @@ function dev_settings_form_submit_settings($form, &$form_state) {
   }
 }
 
+function dev_settings_form_submit_enabled($form, &$form_state) {
+  $enabled_old = (bool)variable_get('dev_enabled');
+  $enabled_new = (bool)$form_state['values']['enable']['dev_enabled'];
+  variable_set('dev_enabled', $enabled_new);
+
+  if ($enabled_new !== $enabled_old) {
+    system_list_reset();
+    exit();
+  }
+}
+
 // @todo All the shell stuff should be robustified.
 
 /**
+ * Check if we have a git dir in the right location.
  * @return int
  */
 function dev_check_git() {
-  dev_dir_exec_silent('git rev-parse', $output, $return);
-  return $return;
+  dev_dir_exec_silent('git rev-parse --show-toplevel', $output, $return);
+  $toplevel = $output[0];
+  return realpath($toplevel) === realpath(variable_get('dev_git_local_path'));
 }
 
 /**
@@ -156,7 +185,7 @@ function dev_check_git() {
  */
 function dev_get_git_diff() {
   dev_dir_exec_silent('git diff', $output, $return);
-  return $output;
+  return implode('<br>', $output);
 }
 
 /**
@@ -191,9 +220,6 @@ function dev_settings_git_clone($form, &$form_state) {
   exec($command, $output, $return);
   $output = implode('<br>', $output);
   drupal_set_message(t('Command: @command<br> output: <br><pre>@output</pre>', array('@command' => $command, '@output' => $output)));
-
-  system_rebuild_module_data();
-  system_rebuild_theme_data();
 }
 
 /**
@@ -231,14 +257,14 @@ function dev_dir_exec($command, &$output = NULL, &$return = NULL, $silent = FALS
     chdir($dir);
     $return = exec($command, $output, $return);
     chdir($old_dir);
-    if (!$silent) {
+    if (!$silent || variable_get('dev_debug')) {
       $output_string = implode('<br>', $output);
       drupal_set_message(t('Command: @command<br> output: <br><pre>@output</pre>', array('@command' => $command, '@output' => $output_string)));
     }
     return;
   }
-  elseif (!$silent) {
-    drupal_set_message(t('Command not executed. Local path is not a valid diractory.'), 'error');
+  elseif (!$silent || variable_get('dev_debug')) {
+    drupal_set_message(t('Command not executed: @command<br> Local path is not a valid diractory: @dir', array('@command' => $command, '@dir' => $dir)), 'error');
   }
 }
 
