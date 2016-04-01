@@ -6,7 +6,8 @@
 function dev_menu() {
   $items['admin/config/development/dev'] = array(
     'title' => 'DEV settings',
-    'page callback' => 'dev_settings_form',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('dev_settings_form'),
     'type' => MENU_NORMAL_ITEM,
     'access arguments' => array('administer dev'),
     'file path' => drupal_get_path('module', 'dev'),
@@ -33,9 +34,8 @@ function dev_permission() {
 function dev_system_info_alter(&$info, &$file, $type) {
   $dev_drupal_root =& drupal_static(__FUNCTION__);
   // Check this only once per request.
-  if (!isset($dev_drupal_root)) {
-    $git_local_path = variable_get('dev_git_local_path');
-    if ($git_local_path) {
+  if (!isset($dev_drupal_root)) {;
+    if (variable_get('dev_enabled') && ($git_local_path = variable_get('dev_git_local_path'))) {
       $relative_drupal_root_path = variable_get('dev_relative_drupal_root_path');
       // Multiple slashes are no problem.
       $dev_drupal_root = "$git_local_path/$relative_drupal_root_path";
