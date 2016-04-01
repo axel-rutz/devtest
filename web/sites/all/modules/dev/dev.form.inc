@@ -146,7 +146,6 @@ function dev_settings_form($form, &$form_state) {
   }
   $form['vtabs']['#default_tab'] = "edit-$default_tab";
 
-  dpm(get_defined_vars());
   return $form;
 }
 
@@ -163,8 +162,7 @@ function dev_settings_form_submit_enabled($form, &$form_state) {
   variable_set('dev_enabled', $enabled_new);
 
   if ($enabled_new !== $enabled_old) {
-    system_list_reset();
-    exit();
+    register_shutdown_function('system_list_reset');
   }
 }
 
